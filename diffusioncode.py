@@ -3,21 +3,21 @@
 
 # Version 1- basic modelling-final spectral index plot only
 
-#Ver 1.1 added diagnostics plots and tables when modelling is finished
-#Ver 1.2 adding diagnostic plots to every 10000 iterations so program doesn't need to be run several times
+#Ver 1.0.1 added diagnostics plots and tables when modelling is finished
+#Ver 1.0.2 adding diagnostic plots to every 10000 iterations so program doesn't need to be run several times
+#Ver 1.1.0 version that is used in 
+
 
 from __future__ import division
 import numpy as np
-import pylab as pyl
-import matplotlib.pyplot as plt
-from scipy.optimize import leastsq
-from scipy.interpolate import UnivariateSpline
-from scipy.interpolate import InterpolatedUnivariateSpline 
 from diffunction import *
-import argparse
-import optparse
 import os
 import sys
+import csv
+from optparse import OptionParser
+
+
+VERSION = '1.1.0'
 
 ####proper plots and output textfiles
 #### This code models the diffusion loss equation
@@ -25,41 +25,35 @@ import sys
 
 #############################################PARSER OPTIONS#########################################################
 
-parser = optparse.OptionParser()
-
-required = optparse.OptionGroup(parser, "Required Attributes")
-
-required.add_option('--Dif', help='Diffusion coefficien in r direction.Default is 2.8e28, similar to Milky Way',default = '2.8e28', action='store', type='float', dest='D')
-required.add_option('--iter', help='Number of iteration desired',default = '10000', action='store', type='float', dest='T')
-required.add_option('--outarray', help='Final Output Numpy array',default = 'OUTPUTARRAY', action='store', type='string', dest='outputarray')
-required.add_option('--Dz', help='Diffusion coefficient in z-direction', action='store', default = '2.8e28', type='float', dest='Dz')
-required.add_option('--kappa', help='Energy dependence of the diffusion coefficient in r direction',default = '0.0', action='store', type='float', dest='kappa')
-required.add_option('--wind', help='Wind in z direction (please input in cms per sec)',default = '0.0', action='store', type='float', dest='wind')
-
-additional = optparse.OptionGroup(parser, "Additional Options")
-additional.add_option('--input', help='Optional Input Array ',action='store', type='string', dest='inputarray')
-
-parser.add_option_group(required)
-parser.add_option_group(additional)
-
-options, arguments = parser.parse_args()
+if __name__ == '__main__':
+    
+    """ Handle all parsing here if started from the command line"""
+    parser = OptionParser(usage="%prog <input parameter file>",  version="%prog " + VERSION)
 
 
-D = options.D
-Dz = options.Dz
-kappa = options.kappa
-wind = options.wind
-nt = options.T
-outputarray = options.outputarray
+    (options, args) = parser.parse_args()
+    
+    print "CREPE ver. " + VERSION
+    print "Written by David D. Mulcahy"
+    print ""
+    print "Parsing parameter file..."
+    params = readfromparset(args[0])
+
+
+D = params.diffcoeffr
+Dz = params.diffcoeffz
+kappa = 1
+nt = params.iter
+outputarray = 'output.npy'
 
 
 ####Creating plot directories####
 
-if os.path.exists('makingplotsfortalk'):
-    os.system('rm -rf makingplotsfortalk')
-    os.system('mkdir makingplotsfortalk')
+if os.path.exists(params.outputdir):
+    os.system('rm -rf '+str(params.outputdir))
+    os.system('mkdir '+str(params.outputdir))
 else:
-    os.system('mkdir makingplotsfortalk')
+    os.system('mkdir '+str(params.outputdir))
 
 
 #Parameters to be used
@@ -82,11 +76,8 @@ derivenr = (derivendr - derivstartr)/dr
 deriver = np.linspace(derivstartr,derivendr,derivenr+1)*3.08567758e21 #Initialize spatial axis
 deriverprime = deriver/r0
 
-
-
-
 ##### TIME #####
-dt = 0.01
+dt = 0.01 # timestep 
 t0=3.1556926e13 # million years in seconds 
 
 ### ENERGY ###
@@ -96,47 +87,48 @@ ne=300
 E = np.linspace(starte,ende,ne+1)
 
 #Energy Dependence of diffusion
-n=0
-Diff = np.ones(len(E))
-ENERGY=E/3
-print ENERGY
-for finddiff in ENERGY:
-    if ENERGY[n]<=1:
-        Diff[n]=D
-        n=n+1
-    else:
-        Diff[n]=D*(ENERGY[n])**kappa
-        n=n+1
+#n=0
+#Diff = np.ones(len(E))
+#ENERGY=E/3
+#print ENERGY
+#for finddiff in ENERGY:
+#    if ENERGY[n]<=1:
+#        Diff[n]=D
+#        n=n+1
+#    else:
+#        Diff[n]=D*(ENERGY[n])**kappa
+#        n=n+1
 
 
-print'DIFF is', Diff
+#print'DIFF is', Diff
 
            
 ### Coefficients for injection spectrum #####
 K = 1
-gamma_0 = -2.001
+gamma_0 = -2.001 #injection energy slope -2 is equal to -0.5 in spectral index
 
 #######create Source Term#############
 N = K*(E**(gamma_0)) ###!!!!N.B linear E must go into this function!!!!#####
 
 ############Input RADIAL Magnetic Field####################
-bfeldy = np.loadtxt('bfield15kpc300.txt',unpack=True, usecols=[1])
-bfeld0 = np.max(bfeldy)/2
+bfeldy = np.loadtxt(params.inputmagnetic,unpack=True, usecols=[1])
+print bfeldy
+bfeld0 = np.max(bfeldy) #normalise the magnetic field
 print 'Bfeld0 is',bfeld0 
 bfeldprime = bfeldy/bfeld0 # making bfield dimensionless
 
 ########Input radial SNR for injection##################
-sourcey = np.loadtxt('sourcefunction15kpc.txt',unpack=True, usecols=[1])
+sourcey = np.loadtxt(params.inputsource,unpack=True, usecols=[1])
 
 inputQ = sourcey*0.02
 Q0 = np.max(inputQ)/2
 inputQ = (inputQ/Q0)
 
 # checking if the second derivative at nr is 0, all points in this area should be zero
-if inputQ[nr]==0 and inputQ[nr-1]==0 and inputQ[nr-2]==0 and inputQ[nr]==0:
+if inputQ[nr]==0 and inputQ[nr-1]==0 and inputQ[nr-2]==0:
     print 'initial source boundary condition is okay'
 else:
-    print 'initial source boundary condition unacceptable'
+    print 'initial source boundary condition unacceptable, the final three entries in input source function need to be zero. Please modify your source function.'
     sys.exit('Terminating program')
     
 n=0
@@ -184,8 +176,6 @@ print dEprime
 #    print 'Diffusion Courant Condition has not passed'
 #    sys.exit('Terminating program')
 
-
-
 ######Create escape time array for M51#########
 
 rkpc = np.linspace(startr,endr,nr+1)
@@ -193,6 +183,7 @@ scaleheight= np.ones(len(rkpc))
 #Using the 20cm scale heights from Berkhuijsen et al. 1996
 #######assigning scale height here#######
 
+#scale height increases as one increases radius
 n=0
 for findscaleheight in scaleheight:
     if rkpc[n]<=6.0:
@@ -207,8 +198,6 @@ for findscaleheight in scaleheight:
     elif rkpc[n]>12.0:
         scaleheight[n]=2.2
         n=n+1
-
-
 
 #Computing the escape times in radius      
 #scaleheight[:] = 1.4 #uncomment if one wants Mao et al 2015 scale heights
@@ -235,17 +224,12 @@ for findescape in escapeenergy:
     diffescape[n,:] = scaleheightdif
     n=n+1
 
-#computing escape time from wind
-#scaleheightwind = (scaleheight*3.08567758e21)/wind
-
 #combining wind and diffusive escape times
 
 print 'diffusion only escape is'
 print diffescape
 
 finalesc = diffescape
-#finalesc = (1/diffescape) + (1/scaleheightwind) #not using the energy dependence here
-#finalesc = 1/finalesc
 print 'FINAL ESCAPE IS'
 print finalesc
 
@@ -289,9 +273,9 @@ def fullrightside(u):
   #finalu = theta[:,None]*rhs(u) + K*Q + bfeldprime*sigma*rhsenergy(u) + phi*rhsenergy(u) - ((t0)*(u/finalesc))
   return finalu
 
-if options.inputarray:
+if params.inputarray:
     print 'Input numpy array accepted'
-    u = np.load(options.inputarray)
+    u = np.load(params.inputarray)
 else:
     print 'No Input inserted'
     print 'Will begin modelling naturally'
@@ -306,8 +290,7 @@ finalr=(rprime*r0)/3.08567758e21 # real radius in kpc for plots
 finale=(Eprime*E0)/1.6e-12 # real energy in ev for plots
 finale=finale/1e09
 
-#initialise arrays for dianostics 
-
+#initialise arrays for diagnostics 
 timearray = np.array([])
 dianosticcenter = np.array([])
 dianosticinter = np.array([])
@@ -315,7 +298,7 @@ dianosticarm = np.array([])
 dianosticextended = np.array([]) 
 allboundarypoints = np.array([])
 time = np.array([])
-totalcrefile = open('creevolution.txt','w')
+totalcrefile = open('creevolution.txt','w') # open up a file to show the total number of CRe in model at each iteration
 
 # Runga-Kutta Loop
 
@@ -343,16 +326,8 @@ while i<nt:
             createfinalplot(finalr,freqspecHBAVLA,i)
             createfinalplotHBALBA(finalr,freqspecHBALBA,i)
             outputfiles(finalr,freqspecHBAVLA,freqspecHBALBA,finaloutput50MHZ,finaloutput151MHZ,finaloutput330MHZ,finaloutput610MHZ,finaloutput1400MHZ,finaloutput2600MHZ,i)
-            #fitscalelengthforVLA(finalr,u[6],i)
-            #fitscalelengthforLOFAR(finalr,u[1],i)
             totalN=np.sum(u)
             totalcrefile.write(str(i) + " " + str(totalN) + "\n")
-        if i%1000==0:
-	    print i
-            plotenergyevo(E, u[:,299], i)
-            print '299:',u[299,299]
-	    #print '300:',u[300,299]
-	    #print '250:',u[250,299]
     	i=i+1
 
 print timearray.shape
@@ -362,14 +337,23 @@ print 'creating outputs and fits'
 print u
 np.save(str(outputarray)+'.npy',u)
 
+
+
+finaloutput50MHZ, LOFARLBAenergy = find_nearest(u,5.0e+01,bfeldy,E)
 finaloutput151MHZ, LOFARenergy = find_nearest(u,1.51e+02,bfeldy,E)
+finaloutput330MHZ, GMRT330energy = find_nearest(u,3.3e+02,bfeldy,E)
+finaloutput610MHZ, GMRT610energy = find_nearest(u,6.1e+02,bfeldy,E)
 finaloutput1400MHZ, VLAenergy = find_nearest(u,1.4e+03,bfeldy,E)
+finaloutput2600MHZ, SBANDenergy = find_nearest(u,3.0e+03,bfeldy,E)
+modelspecHBAVLA = (np.log10(finaloutput1400MHZ)-np.log10(finaloutput151MHZ))/(np.log10(VLAenergy)-np.log10(LOFARenergy))
+freqspecHBAVLA = (-1*((-1*modelspecHBAVLA)-1))/2
+modelspecHBALBA = (np.log10(finaloutput151MHZ)-np.log10(finaloutput50MHZ))/(np.log10(LOFARenergy)-np.log10(LOFARLBAenergy))
+freqspecHBALBA = (-1*((-1*modelspecHBALBA)-1))/2
+createfinalplot(finalr,freqspecHBAVLA,i)
+createfinalplotHBALBA(finalr,freqspecHBALBA,i)
+outputfiles(finalr,freqspecHBAVLA,freqspecHBALBA,finaloutput50MHZ,finaloutput151MHZ,finaloutput330MHZ,finaloutput610MHZ,finaloutput1400MHZ,finaloutput2600MHZ,i)
+totalN=np.sum(u)
+totalcrefile.write(str(i) + " " + str(totalN) + "\n")
 
-plt.plot(finalr,finaloutput151MHZ,'ro')
-plt.plot(finalr,finaloutput1400MHZ,'bo')
-
-plt.plot(time,allboundarypoints)
-
-plt.yscale('log')
-plt.show()
-#boundaryfile.close
+print 'Finished after '+str(i)+' iterations'
+sys.exit()

@@ -1,11 +1,74 @@
 from __future__ import division
 import numpy as np
-import pylab as pyl
 import matplotlib.pyplot as plt
 from scipy.optimize import leastsq
-import argparse
 import os
+import csv
 
+class Params:
+    """
+    """
+
+    def __init__(self):
+        """
+        Params()
+        Intitializes the parameter list with default values. Change parameters
+        by directly accessing these class variables.
+        """
+        self.diffcoeffr = 2.8e28
+        self.iter = 10000
+        self.diffcoeffz = 2.8e28
+        self.inputarray = ''
+        self.inputmagnetic = 'bfield15kpc300.txt'
+        self.inputsource = 'sourcefunction15kpc.txt'
+        self.outputdir = 'makingplotsfortalk'
+    def __call__(self):
+        """
+        """
+        print 'CREPE Input parameters:'
+        print '    Diffusion coefficient in radial direction:         ', self.diffcoeffr
+        print '    Number of iterations:            ', self.iter
+        print '    Diffusion coefficient in vertical direction:         ', self.diffcoeffz
+        print '    Input numpy array:         ', self.inputarray
+        print '    Input magnetic field distribution:         ', self.inputmagnetic
+        print '    Input magnetic field distribution:         ', self.inputsource
+        print '    Output files to be place in:         ', self.outputdir
+
+
+def readfromparset(infile):
+    
+    reader = csv.reader(open(str(infile), 'rb'), delimiter=" ", skipinitialspace=True)
+
+    params = Params()
+
+    parset = dict()
+
+    for row in reader:
+            if len(row) != 0 and row[0] != '%':
+                parset[row[0]] = row[1]
+            else:
+                continue
+                
+    params.diffcoeffr = float(parset['diffcoeffr'])
+    params.iter = float(parset['iter'])
+    params.diffcoeffz = float(parset['diffcoeffz'])
+    params.inputarray = parset['inputarray']
+    params.outputarray = parset['outputarray']
+    params.inputmagnetic = parset['inputmagnetic']
+    params.inputsource = parset['inputsource']
+    params.outputdir = parset['outputdir']
+      
+    print 'CREPE Input parameters:'
+    print '    Diffusion coefficient in radial direction:', params.diffcoeffr
+    print '    Number of iterations:                     ', params.iter
+    print '    Diffusion coefficient in vertical direction:',params.diffcoeffz
+    print '    Input numpy array:                         ', params.inputarray
+    print '    Output numpy array:                         ', params.outputarray
+    print '    Input magnetic field distribution:         ', params.inputmagnetic
+    print '    Input injection distribution:         ', params.inputsource
+    print '    Output files to be placed in:              ', params.outputdir
+    
+    return params
 def findinterpolpoints2low(QE):
   lowQE = (QE[0] - 2*(QE[1] - QE[0])) #locked off
   return lowQE
@@ -14,16 +77,6 @@ def findinterpolpointslow(QE):
   lowQE = (QE[0] - (QE[1] - QE[0])) #locked off
   return lowQE
   
-#def findinterpolpointshigh(QE,ne):
-#  highQE = (QE[ne] + (QE[ne] - QE[ne-1])) #locked off
-#  highQE=highQE.clip(min=0)
-#  return highQE
-
-#def findinterpolpoints2high(QE,ne):
-#  highQE = (QE[ne] + 2*(QE[ne] - QE[ne-1])) #locked off
-#  highQE=highQE.clip(min=0)
-#  return highQE
-
 def findinterpolpointslowenergy(QE):
     if  QE[0]==0:
         lowQE=0
@@ -157,97 +210,7 @@ def outputfiles(radius,specindexhbavla,specindexlbahba,LOFARLBACRE,LOFARHBACRE,G
 #        np.savetxt(outfile3, np.transpose((radius, VLACRE)), fmt='%s %s')
 #        os.system('mv VLACREdistribution'+str(n)+'.txt makingplotsfortalk')
 
-
-
-
-def fitscalelengthforVLA(sourcex,sourcey,n):
-	expfunc = lambda p,x: p[0]*np.exp(p[1]*x)
-	experr = lambda p,x,y: expfunc(p,x)-y
-	p0=[20000,-0.5] #Initial guesses
-	fitout=leastsq(experr,p0[:],args=(sourcex,sourcey))
-	paramsout=fitout[0]
-	outfile = open('VLAfitsresults'+str(n)+'.txt', 'w')
-        print >>outfile, 'Fitted Parameters for 1.4GHZ:\na = %.2f , b = %.2f' % (paramsout[0],paramsout[1])
-        print >>outfile, 'Scale length at VLA frequency is found to be %.2f kpc' % (-1*(1/paramsout[1]))
-	#print('Fitted Parameters for 1.4GHZ:\na = %.2f , b = %.2f' % (paramsout[0],paramsout[1]))
- 	#print ('Scale length at VLA frequency is found to be %.2f kpc' % (-1*(1/paramsout[1])))
-	xsmooth=np.linspace(sourcex[0],sourcex[-1])
-	xsmooth=np.linspace(sourcex[0],sourcex[-1])
-	plt.rc('font',family='serif')
-	fig1=plt.figure(1)
-	frame1=fig1.add_axes((.1,.3,.8,.6)) 
-	plt.plot(sourcex,sourcey,'r.')
-	plt.plot(xsmooth,expfunc(paramsout,xsmooth),'b-')
-	plt.yscale('log')
-	frame1.set_xticklabels([]) #We will plot the residuals below, so no x-ticks on this plot
-	plt.title('Scale Length Fit for VLA Frequency')
-	plt.ylabel('N(R)', fontsize=20)
-	plt.xlabel('Radius kpc', fontsize=20)
-	plt.xlim(np.min(sourcex),np.max(sourcex))
-	plt.grid(True)
-
-	from matplotlib.ticker import MaxNLocator
-	plt.gca().yaxis.set_major_locator(MaxNLocator(prune='lower')) #Removes lowest ytick label
- 
-	frame2=fig1.add_axes((.1,.1,.8,.2))
-	plt.plot(sourcex,expfunc(paramsout,sourcex)-sourcey,'k')
-	plt.ylabel('Residuals')
-	plt.grid(True)
-	plt.savefig('VLAscalelength'+str(n)+'.png',dpi=100)
-	plt.close()
-	plt.xlabel('Radius kpc', fontsize = 20)
-	plt.xlim(np.min(sourcex),np.max(sourcex))
-	os.system('mv VLAscalelength'+str(n)+'.png makingplotsfortalk')
-	
-	scalelengthoutfile3 = open('VLACREscalelength'+str(n)+'.txt', 'w')
-	np.savetxt(scalelengthoutfile3, np.transpose((xsmooth, expfunc(paramsout,xsmooth))), fmt='%s %s')
-	os.system('mv VLACREscalelength'+str(n)+'.txt makingplotsfortalk')
-	os.system('mv VLAfitsresults'+str(n)+'.txt makingplotsfortalk')
-
-
-def fitscalelengthforLOFAR(sourcex,sourcey,n):
-        expfunc = lambda p,x: p[0]*np.exp(p[1]*x)
-        experr = lambda p,x,y: expfunc(p,x)-y
-        p0=[20000,-0.5] #Initial guesses
-        fitout=leastsq(experr,p0[:],args=(sourcex,sourcey))
-        paramsout=fitout[0]
-        outfile = open('LOFARfitsresults'+str(n)+'.txt', 'w')
-        print >>outfile, 'Fitted Parameters for 151MHZ:\na = %.2f , b = %.2f' % (paramsout[0],paramsout[1])
-        print >>outfile, 'Scale length at LOFAR frequency is found to be %.2f kpc' % (-1*(1/paramsout[1]))
-        #print('Fitted Parameters for 151MHZ:\na = %.2f , b = %.2f' % (paramsout[0],paramsout[1]))
-        #print ('Scale length is found to be %.2f kpc' % (-1*(1/paramsout[1])))
-        xsmooth=np.linspace(sourcex[0],sourcex[-1])
-        xsmooth=np.linspace(sourcex[0],sourcex[-1])
-        plt.rc('font',family='serif')
-        fig1=plt.figure(1)
-        frame1=fig1.add_axes((.1,.3,.8,.6))
-        plt.plot(sourcex,sourcey,'r.')
-        plt.plot(xsmooth,expfunc(paramsout,xsmooth),'b-')
-        plt.yscale('log')
-        frame1.set_xticklabels([]) #We will plot the residuals below, so no x-ticks on this plot
-        plt.title('Scale Length Fit at 150 MHz')
-        plt.ylabel('N(R)', fontsize=20)
-        plt.xlabel('Radius kpc',fontsize=20)
-        plt.xlim(np.min(sourcex),np.max(sourcex))
-        plt.grid(True)
-
-        from matplotlib.ticker import MaxNLocator
-        plt.gca().yaxis.set_major_locator(MaxNLocator(prune='lower')) #Removes lowest ytick label
-
-        frame2=fig1.add_axes((.1,.1,.8,.2))
-        plt.plot(sourcex,expfunc(paramsout,sourcex)-sourcey,'k')
-        plt.ylabel('Residuals')
-        plt.grid(True)
-        plt.savefig('LOFARscalelength'+str(n)+'.png',dpi=100)
-        plt.close()
-        plt.xlabel('Radius kpc',fontsize=20)
-        plt.xlim(np.min(sourcex),np.max(sourcex))
-        os.system('mv LOFARscalelength'+str(n)+'.png makingplotsfortalk')
-
-        scalelengthoutfile3 = open('LOFARCREscalelength'+str(n)+'.txt', 'w')
-        np.savetxt(scalelengthoutfile3, np.transpose((xsmooth, expfunc(paramsout,xsmooth))), fmt='%s %s')
-        os.system('mv LOFARCREscalelength'+str(n)+'.txt makingplotsfortalk')
-        os.system('mv LOFARfitsresults'+str(n)+'.txt makingplotsfortalk')               
+           
 
 def timeplots(time,center,extended,inter,arm):
     plt.rc('font',family='serif')
