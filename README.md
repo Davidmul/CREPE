@@ -9,6 +9,6 @@ To do:
 - Delete unneeded sections  
 - Tidy
 - Courant conditions work properly
-- inputs are via a parset
+- inputs are via a parset --> done but needs refinement
 - adaptive length
 - Energy dependence can be switched on
