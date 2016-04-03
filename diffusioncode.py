@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-# import modules and functions
+
 
 # Version 1- basic modelling-final spectral index plot only
-
 #Ver 1.0.1 added diagnostics plots and tables when modelling is finished
 #Ver 1.0.2 adding diagnostic plots to every 10000 iterations so program doesn't need to be run several times
-#Ver 1.1.0 version that is used in 
+#Ver 1.1.0 version that is used in Mulcahy et al, 2016
+#Ver 1.1.1 version has a user parset interface
 
-
+# import modules and functions
 from __future__ import division
 import numpy as np
 from diffunction import *
@@ -17,7 +17,7 @@ import csv
 from optparse import OptionParser
 
 
-VERSION = '1.1.0'
+VERSION = '1.1.1'
 
 ####proper plots and output textfiles
 #### This code models the diffusion loss equation
